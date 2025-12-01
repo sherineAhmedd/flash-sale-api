@@ -11,6 +11,10 @@ class Hold extends Model
         'quantity',
         'expires_at',
     ];
+     public function order()
+    {
+        return $this->hasOne(Order::class);
+    }
     protected $dates = ['expires_at'];
     // to get what this ID refers to so it can get the product.
     public function product()
