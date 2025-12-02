@@ -1,59 +1,184 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+Laravel Flash-Sale Checkout API
+Overview
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This project implements a Flash-Sale Checkout API that safely sells a limited-stock product under high concurrency. It ensures correctness of stock, supports short-lived holds, pre-payment orders, and idempotent payment webhooks.
 
-## About Laravel
+Target: Laravel 12, MySQL (InnoDB), Redis (or any Laravel cache driver).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Key Features:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Product endpoint with real-time stock availability.
+Temporary holds that auto-expire (~2 minutes).
+Order creation from valid holds.
+Idempotent and out-of-order safe payment webhook.
+High concurrency handling to avoid overselling.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Assumptions & Invariants
 
-## Learning Laravel
+Single product seeded for simplicity; 
+can extend to multiple products.
+Stock integrity: total stock = available stock + held stock + confirmed orders.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Holds:
+Hold reduces availability immediately.
+Hold expires automatically after ~2 minutes.
+Each hold can be used once.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Orders:
+Only valid, unexpired holds can create an order.
+Order status: pending, paid, cancelled.
 
-## Laravel Sponsors
+Payment Webhook:
+Safe for repeated delivery (idempotent using idempotency_key).
+Can arrive before order creation.
+Ensures final stock/order state is consistent.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+Endpoints
+1. Product
 
-### Premium Partners
+GET /api/products/{id}
+Returns basic product info and accurate available stock.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Response Example:
 
-## Contributing
+{
+  "id": 1,
+  "name": "Limited Edition Item",
+  "price": 100.0,
+  "available_stock": 5
+}
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+2. Create Hold
 
-## Code of Conduct
+POST /api/holds
+Payload: { "product_id": 1, "quantity": 2 }
+Creates a temporary reservation (~2 minutes).
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Success Response:
 
-## Security Vulnerabilities
+{
+  "hold_id": 7,
+  "expires_at": "2025-12-02T18:30:00Z"
+}
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
 
-## License
+Notes:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Holds immediately reduce available stock for others.
+
+Expired holds automatically release stock.
+
+3. Create Order
+
+POST /api/orders
+Payload: { "hold_id": 7 }
+
+Success Response:
+
+{
+  "order_id": 1,
+  "hold_id": 7,
+  "status": "pending"
+}
+
+
+Notes:
+
+Only valid, unexpired holds are accepted.
+
+Each hold can be used once.
+
+4. Payment Webhook
+
+POST /api/payments/webhook
+Payload: { "idempotency_key": "abc123", "order_id": 1, "status": "success" }
+
+Behavior:
+
+Updates order to paid on success.
+Cancels order and releases hold on failure.
+Safe for repeated or out-of-order webhook deliveries.
+Running the Application
+
+Clone the repo:
+
+git clone <repo-url>
+cd flash-sale-api
+
+Install dependencies:
+
+composer install
+
+
+Set up .env:
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=flashsale
+DB_USERNAME=root
+DB_PASSWORD=
+CACHE_DRIVER=redis
+
+Run migrations & seeders:
+php artisan migrate --seed
+
+Run the application:
+php artisan serve
+
+Cache Setup & Usage (Docker)
+This project uses Redis via Docker to cache product availability and improve read performance.
+Running Redis with Docker:
+
+docker run -d --name flashsale_redis -p 6379:6379 redis
+
+Laravel Redis Configuration (.env):
+
+CACHE_DRIVER=redis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+
+
+Cache Behavior:
+Product stock availability is cached for fast reads.
+Holds immediately reduce cached stock.
+Expired holds automatically release stock and update the cache.
+Prevents stale or incorrect stock under heavy load.
+
+Optional: Check Redis cache keys
+
+docker exec -it flashsale_redis redis-cli
+> keys *
+
+Clear cache manually:
+php artisan cache:clear
+
+Testing
+
+Automated tests included to verify:
+Concurrency & Oversell Prevention: Multiple parallel hold attempts at stock boundaries.
+Hold Expiry: Expired holds automatically return stock availability.
+Webhook Idempotency: Same idempotency_key multiple times has no duplicate effect.
+Out-of-Order Webhook Handling: Webhook arrives before order creation.
+
+Running Tests:
+
+To run automated tests, make sure you have a .env.testing file configured for your test database. Then execute:
+
+php artisan test
+
+Logs & Metrics
+Logs stored in storage/logs/laravel.log.
+
+Structured logs capture:
+Hold creation & expiry.
+Stock contention & retries.
+Webhook deduplication events.
+
+Notes
+
+Caching via Redis improves read performance while keeping stock accuracy.
+Background jobs ensure holds expire reliably without duplication.
+Avoids N+1 queries on list endpoints.
+API only; no UI included.
