@@ -17,7 +17,7 @@ class ProductController extends Controller
     }
       public function show($id)
     {
-        $product = Product::with(['holds' => fn($q) => $q->active()])->find($id);
+       $product = Product::with(['holds' => fn($q) => $q->active()])->find($id);
 
 
         if (!$product) {

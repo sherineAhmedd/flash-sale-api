@@ -29,4 +29,10 @@ class Hold extends Model
     {
         return now()->greaterThan($this->expires_at);
     }
+    
+      public function scopeActive($query)
+    {
+        return $query->where('expires_at', '>', now())
+                     ->where('used', false);
+    }
 }

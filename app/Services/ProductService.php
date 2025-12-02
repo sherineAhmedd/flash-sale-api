@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Services;
-
+use Illuminate\Support\Facades\Log;
 use App\Models\Product;
 use Illuminate\Support\Facades\Cache;
 
@@ -10,7 +10,7 @@ class ProductService
     // Get product info + available stock with caching
     public function getProductWithStock(Product $product): array
     {
-         $cacheKey = "product_{$product->id}_available";
+         $cacheKey = "laravel_cache:product_{$product->id}_available";
 
         // Try to get from cache first
         $availableStock = Cache::get($cacheKey);
