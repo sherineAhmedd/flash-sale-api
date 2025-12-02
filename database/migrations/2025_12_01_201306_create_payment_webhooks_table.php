@@ -13,6 +13,10 @@ return new class extends Migration
     {
         Schema::create('payment_webhooks', function (Blueprint $table) {
             $table->id();
+            $table->string('idempotency_key')->unique(); 
+            $table->foreignId('order_id')->nullable()->constrained()->nullOnDelete();
+            $table->enum('status', ['success', 'failed']);
+            $table->json('payload')->nullable();
             $table->timestamps();
         });
     }

@@ -12,4 +12,8 @@ class Order extends Model
     {
         return $this->belongsTo(Hold::class);
     }
+    public function paymentWebhooks()
+    {
+    return $this->hasMany(PaymentWebhook::class);
+    }
 }

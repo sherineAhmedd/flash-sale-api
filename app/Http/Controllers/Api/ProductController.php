@@ -17,7 +17,8 @@ class ProductController extends Controller
     }
       public function show($id)
     {
-        $product = Product::find($id);
+        $product = Product::with(['holds' => fn($q) => $q->active()])->find($id);
+
 
         if (!$product) {
             return response()->json(['message' => 'Product not found'], 404);
