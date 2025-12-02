@@ -173,6 +173,8 @@ DB_PASSWORD=
 CACHE_DRIVER=redis
 ```
 
+> **Note:** The MySQL database is running via **XAMPP**. Make sure MySQL is started in XAMPP and the database `flashsale` exists.
+
 4. Run migrations & seeders:
 
 ```bash
